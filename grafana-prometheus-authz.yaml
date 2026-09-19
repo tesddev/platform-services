@@ -1,0 +1,23 @@
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: grafana-to-prometheus
+  namespace: linkerd-viz
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: prometheus-admin
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: grafana-mtls
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: grafana-mtls
+  namespace: linkerd-viz
+spec:
+  identities:
+    - "grafana.monitoring.serviceaccount.identity.linkerd.cluster.local"
