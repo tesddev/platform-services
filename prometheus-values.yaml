@@ -40,3 +40,5 @@ server:
           regex: ([^:]+)(?::\d+)?;(\d+)
           replacement: $1:$2
           target_label: __address__
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          target_label: app
