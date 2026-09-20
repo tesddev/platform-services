@@ -14,13 +14,13 @@ spec:
       labels:
         app: {{ .Chart.Name }}
       annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8000"
-        prometheus.io/path: "/metrics"
+        prometheus.io/scrape: \"true\"
+        prometheus.io/port: \"8000\"
+        prometheus.io/path: \"/metrics\"
     spec:
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: \"{{ .Values.image.repository }}:{{ .Values.image.tag }}\"
           imagePullPolicy: Always
           ports:
             - containerPort: {{ .Values.service.targetPort }}
@@ -36,10 +36,14 @@ spec:
               path: /health
               port: {{ .Values.service.targetPort }}
             initialDelaySeconds: 10
-          {{- if .Values.env }}
           env:
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Chart.Name | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otelEndpoint | default \"tempo.monitoring.svc.cluster.local:4317\" | quote }}
+            {{- if .Values.env }}
             - name: AUTH_SERVICE_URL
               value: {{ .Values.env.authServiceUrl | quote }}
             - name: NOTIFICATION_SERVICE_URL
               value: {{ .Values.env.notificationServiceUrl | quote }}
-          {{- end }}
+            {{- end }}
