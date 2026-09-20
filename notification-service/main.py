@@ -1,13 +1,37 @@
 import os
+import time
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
-resource = Resource.create({"service.name": os.getenv("OTEL_SERVICE_NAME", "unknown-service")})
+# --- Prometheus Middleware ---
+REQUEST_COUNT = Counter(
+    "http_requests_total", "Total HTTP requests",
+    ["method", "path", "status"]
+)
+REQUEST_LATENCY = Histogram(
+    "http_request_duration_seconds", "HTTP request latency",
+    ["method", "path"]
+)
+
+class PrometheusMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        start = time.time()
+        response = await call_next(request)
+        REQUEST_COUNT.labels(request.method, request.url.path, response.status_code).inc()
+        REQUEST_LATENCY.labels(request.method, request.url.path).observe(time.time() - start)
+        return response
+
+# --- OpenTelemetry Setup ---
+resource = Resource.create({"service.name": os.getenv("OTEL_SERVICE_NAME", "notification-service")})
 provider = TracerProvider(resource=resource)
 otlp_exporter = OTLPSpanExporter(
     endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "tempo.monitoring.svc.cluster.local:4317"),
@@ -16,33 +40,24 @@ otlp_exporter = OTLPSpanExporter(
 provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 trace.set_tracer_provider(provider)
 
-HTTPXClientInstrumentor().instrument()
-
-
-import logging
-from fastapi import FastAPI
-from pydantic import BaseModel
-from prometheus_fastapi_instrumentator import Instrumentator
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("notification-service")
-
 app = FastAPI(title="notification-service")
-Instrumentator().instrument(app).expose(app)
+app.add_middleware(PrometheusMiddleware)
+FastAPIInstrumentor.instrument_app(app)
 
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
+# --- Routes ---
 class NotifyRequest(BaseModel):
     email: str
     message: str
-
 
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
-
 @app.post("/notify")
-def notify(req: NotifyRequest):
-    # Real implementation would call an email provider here.
-    logger.info(f"Notification queued for {req.email}: {req.message}")
-    return {"status": "queued"}
+async def notify_user(req: NotifyRequest):
+    print(f"Sending notification to {req.email}: {req.message}")
+    return {"status": "sent", "email": req.email}
