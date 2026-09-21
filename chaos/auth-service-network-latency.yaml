@@ -1,0 +1,17 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: auth-service-network-latency
+  namespace: platform
+spec:
+  action: delay
+  mode: one
+  selector:
+    namespaces:
+      - platform
+    labelSelectors:
+      app: auth-service
+  delay:
+    latency: "500ms"
+    jitter: "100ms"
+  direction: to
