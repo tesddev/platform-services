@@ -1,0 +1,19 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: api-gateway-cpu-stress
+  namespace: platform
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - platform
+    labelSelectors:
+      app: api-gateway
+  containerNames:
+    - api-gateway
+  stressors:
+    cpu:
+      workers: 2
+      load: 80
+  duration: "2m"
