@@ -1,0 +1,13 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: api-gateway-pod-kill
+  namespace: platform
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - platform
+    labelSelectors:
+      app: api-gateway
